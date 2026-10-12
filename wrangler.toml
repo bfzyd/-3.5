@@ -1,7 +1,7 @@
 # ============================================================
 # wrangler.toml
 # ============================================================
-name = "TTS"
+name = "tts-api"
 main = "jialang.js"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
