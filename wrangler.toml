@@ -1,0 +1,43 @@
+# ============================================================
+# wrangler.toml
+# ============================================================
+name = "newapi"
+main = "jialang.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ---------- 观察模式 ----------
+# enabled = true  → 记录平台级请求元数据（时间、状态码、耗时）
+# enabled = false → 完全关闭，不产生任何日志
+# 注意：与代码里的 console.log 无关
+[observability]
+enabled = false
+
+# ---------- 普通环境变量（非敏感）----------
+[vars]
+# 敏感信息不写这里，见下方说明
+
+# ============================================================
+# 敏感信息注入方式（二选一）
+# ============================================================
+# 方式一：命令行注入
+#   npx wrangler secret put FISH_API_KEYS
+#   npx wrangler secret put API_KEY
+#   提示时分别输入：
+#     FISH_API_KEYS → key1,key2,key3
+#     API_KEY       → 你自己设的访问密钥
+#
+# 方式二：Cloudflare 后台
+#   Worker → Settings → Variables and Secrets → Add
+#     添加 FISH_API_KEYS（类型选 Secret）
+#     添加 API_KEY（类型选 Secret）
+
+# ============================================================
+# KV 绑定（在 Cloudflare 后台手动添加）
+# ============================================================
+# 进入 Worker → Settings → Bindings → Add binding → KV Namespace
+#   Variable name: FISH_KV      ← 必须完全一致，大小写敏感
+#   KV namespace:  选择你建好的命名空间
+#
+# 添加后需重新部署 Worker 才生效。
+# 若未绑定，代码会自动退化为纯内存模式，不影响 TTS / ASR 使用。
