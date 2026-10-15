@@ -131,11 +131,10 @@ async function handleTTS(req, env, ctx) {
 
   let lastErr = null;
   let lastStatus = 502;
-  let attempt = 0;
+  let retryCount = 0;
 
   for (const key of candidates) {
     const result = await trySynth(key, fishBody, env, traceparent, useMsgpack);
-    attempt++;
 
     if (result.ok) {
       if (deadKeys.delete(key) && env.FISH_KV) {
@@ -148,7 +147,8 @@ async function handleTTS(req, env, ctx) {
     lastStatus = result.status || 502;
 
     if (result.status === 429) {
-      await sleep(RETRY_BACKOFF_MS * (2 ** (attempt - 1)));
+      await sleep(RETRY_BACKOFF_MS * (2 ** retryCount));
+      retryCount++;
       continue;
     }
 
@@ -173,7 +173,8 @@ async function handleTTS(req, env, ctx) {
     );
   }
 
-  return jsonError("所有 Fish 密钥尝试失败: " + (lastErr || "未知错误"), lastStatus);
+  const finalStatus = lastStatus === 401 ? 503 : lastStatus;
+  return jsonError("所有 Fish 密钥尝试失败: " + (lastErr || "未知错误"), finalStatus);
 }
 
 // ============================================================
@@ -226,7 +227,7 @@ async function handleASR(req, env, ctx) {
 
   let lastErr = null;
   let lastStatus = 502;
-  let attempt = 0;
+  let retryCount = 0;
 
   for (const key of candidates) {
     const result = await tryASR(
@@ -237,7 +238,6 @@ async function handleASR(req, env, ctx) {
       asrModel,
       traceparent
     );
-    attempt++;
 
     if (result.ok) {
       if (deadKeys.delete(key) && env.FISH_KV) {
@@ -253,7 +253,8 @@ async function handleASR(req, env, ctx) {
     lastStatus = result.status || 502;
 
     if (result.status === 429) {
-      await sleep(RETRY_BACKOFF_MS * (2 ** (attempt - 1)));
+      await sleep(RETRY_BACKOFF_MS * (2 ** retryCount));
+      retryCount++;
       continue;
     }
 
@@ -278,7 +279,8 @@ async function handleASR(req, env, ctx) {
     );
   }
 
-  return jsonError("所有 Fish 密钥尝试失败: " + (lastErr || "未知错误"), lastStatus);
+  const finalStatus = lastStatus === 401 ? 503 : lastStatus;
+  return jsonError("所有 Fish 密钥尝试失败: " + (lastErr || "未知错误"), finalStatus);
 }
 
 // ============================================================
@@ -412,8 +414,6 @@ async function trySynth(key, fishBody, env, traceparent, useMsgpack) {
       "Cache-Control": "no-store",
       ...corsHeaders(),
     };
-    const cl = resp.headers.get("content-length");
-    if (cl) headers["Content-Length"] = cl;
 
     return {
       ok: true,
@@ -767,9 +767,11 @@ function clamp(v, lo, hi) {
 }
 
 function safeEqual(a, b) {
-  if (a.length !== b.length) return false;
-  let r = 0;
-  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  const max = Math.max(a.length, b.length);
+  let r = a.length ^ b.length;
+  for (let i = 0; i < max; i++) {
+    r |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
   return r === 0;
 }
 
@@ -790,5 +792,6 @@ function corsHeaders() {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers":
       "Content-Type, Authorization, Accept, X-Service, model, traceparent",
+    "Access-Control-Max-Age": "86400",
   };
 }
